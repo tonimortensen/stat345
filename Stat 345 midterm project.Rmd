@@ -1,0 +1,128 @@
+---
+title: "Lakers Report"
+font: 12pt
+date:
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(devtools)
+install_github("abresler/nbastatR")
+library(nbastatR)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#This code is gathering the shot data from different seasons. Data from seasons 1999, 2009, and 2019 is being used. A graph is made for just a single year first, 1999, then I went to add 2009 and 2019 to the graph. I then made a graph with the year 1999 to just see what I'm working with. 
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 2)
+shots_1999 <- teams_shots (teams = "Los Angeles Lakers", seasons = 1999)
+shots_1999_graph <- ggplot(data=shots_1999, aes(x = locationX, y=locationY)) + geom_point() + xlim(-300,300)+ylim(-100,500)+ggtitle("Shots from 1999")
+shots_2009 <- teams_shots (teams = "Los Angeles Lakers", seasons = 2009)
+shots_2019 <- teams_shots (teams = "Los Angeles Lakers", seasons =2019)
+shots <- rbind(shots_1999, shots_2009, shots_2019)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#The following code is how the court is made.
+court <- ggplot(data=data.frame(x=1,y=1),aes(x*10,y*10))+
+   ###outside box:
+geom_path(data=data.frame(x=c(-27,-27,27,27,-27),y=c(-4,50,50,-4,-4)))+
+   ###key:
+geom_path(data=data.frame(x=c(-8,-8,8,8,-8),y=c(-4,14,14,-4,-4)))+
+   ###box inside the key:
+geom_path(data=data.frame(x=c(-6,-6,6,6,-6),y=c(-4,14,14,-4,-4)))+
+   ###restricted area semicircle:
+geom_path(data=data.frame(x=c(-4000:(-1)/1000,1:4000/1000),y=c(0+sqrt(4^2-c(-4000:(-1)/1000,1:4000/1000)^2))),aes(x=x*10,y=y*11))+
+   ###halfcourt semicircle:
+geom_path(data=data.frame(x=c(-6000:(-1)/1000,1:6000/1000),y=c(50-sqrt(6^2-c(-6000:(-1)/1000,1:6000/1000)^2))),aes(x=x*10,y=y*10))+
+   ###rim:
+geom_path(data=data.frame(x=c(-750:(-1)/1000,1:750/1000,750:1/1000,-1:-750/1000),y=c(c(-3+sqrt(0.75^2-c(-750:(-1)/1000,1:750/1000)^2)),c(-3-sqrt(0.75^2-c(750:1/1000,-1:-750/1000)^2)))),aes(x=x*10,y=y*10))+
+   ###backboard:
+geom_path(data=data.frame(x=c(-3,3),y=c(-4,-4)),lineend='butt')+
+   ###three-point line:
+geom_path(data=data.frame(x=c(-22,-22,-22000:(-1)/1000,1:22000/1000,22,22),y=c(-5,169/12,5.25+sqrt(23.75^2-c(-22000:(-1)/1000,1:22000/1000)^2),169/12,-5)),aes(x=x*10,y=y*8))+
+   ###fix aspect ratio to 1:1
+coord_fixed()
+```
+  
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#This code is calculating the percent of shots made and shots missed. I first grouped them by the season and mutated it to just get the isShotMade column and found the mean of the column. The isShotMade column is used to find the mean of the shots made,and since it is a boolean it is a bunch of zeros and ones. So a decimal is then produced, but when multiplied by 100 then the percent is given. To find the shots missed I subtracted what I got for shots made from 100, which resulted in the percent of shots missed.
+shots2 <-  shots %>%
+  group_by(yearSeason)%>%
+  mutate(isShotMade = 100*isShotMade)%>%
+  summarize(mean(isShotMade))
+
+shots2<-rename(shots2, "madeshots"="mean(isShotMade)")
+shots2 <- shots2 %>%
+mutate(missedshots= 100-madeshots)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#This code is where I took the data I found in the above code chunk and made it into a data frame that I could graph by group. I then made a bar graph that shows the percent of made shots and missed shots from the 1999, 2009, and 2019 seasons. 
+shotskiz <-  data.frame(TypeEvent=rep(c("Made Shots", "Missed Shots"),each=3),
+                     Season=rep(c("1999", "2009", "2019"),2),
+                     Percent=c(46.79, 47.36, 47.02,53.21,52.64,52.98))
+shotskiz2 <- ggplot(shotskiz, aes(x=Season, y=Percent, fill=TypeEvent)) + 
+  geom_bar(stat="identity", position=position_dodge(),width=0.5)+
+  ggtitle("Percent of Made and Missed Shots")+
+  theme_clean()+
+  labs(fill="Type Event")+ 
+  scale_fill_manual(values = c("#9933FF","yellow"))
+```
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#This code chunk is taking the court that I made above and is putting the shot data onto it. The zone range and type event is represented by this graphic. The made shots are represented by a circle and the missed shots are represented by a triangle. How far away the player shot from the hoop is represented with the different colors shown in the graph legend. The seasons represented in the graphic are 1999, 2009, and 2019.I also added another bar plot to this graphic for more detail.
+court + geom_point(data=shots, aes(x=locationX,y=locationY, color=zoneRange, shape = typeEvent),alpha=0.5)+ labs(x="",y="", shape= "Type Event", color = "Zone Range" ) + facet_wrap(~yearSeason)+theme_clean()+ggtitle("Los Angeles Lakers' Shots Throughout the Years")
+shotskiz2
+```
+ 
+Report: 
+
+* The court graphic looks at the team shots of the Lakers from three seasons: 1999, 2009, and 2019.
+
+* The shots made is represented by a circle and the shots missed is represented by a triangle. 
+
+* From where on the court the player made the shot is represented by different colors. The different zone ranges and colors are shown in the legend made in the graphic. 
+
+* As the years go on, it appears that the players are shooting further away from the hoop. The purple region on each graphic (the less than 8 feet range), appears to get less dense as the years proceed.
+
+* In the bar graph the percents of the made and missed shots of each season is shown 
+
+* The bar graph does not show a notable change in the made and missed shots throughout the years. 
+
+The court graphic looks at three different seasons of the Los Angeles Lakers team shots. The seasons used in this graphic are 1999, 2009, and 2019.By creating this graphic, I wanted to see how the team shots changed throughout the years and to see if there are any trends. I wanted to look at if there was a change with how far away the players were shooting throughout the years and the amount of made and missed shots.From the court graphic, it appears that the players are shooting further away as the seasons go on. The less than 8 feet region on the court appears to get less dense as the years go on. The amount of back court shots increase with the seasons, and the 24+ feet range appears to get more dense as well. From the bar graph, it does not appear that there is a notable difference of made and missed shots from each of the seasons looked at.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#This code chunk is pulling up the player profiles for the rosters of the given seasons: 1999. 2009, 2019. The mean player height is then calculated for each season. 
+players_2019 <- player_profiles(players= c("Lonzo Ball", "Michael Beasley", "Isaac Bonga", "Reggie Bullock","Kentavious Caldwell-Pope", "Alex Caruso","Tyson Chandler", "Josh Hart","Andre Ingram","Brandon Ingram","LeBron James","Jemerrio Jones","Kyle Kuzma", "Scott Machado","JaVale McGee","Mike Muscala","Svi Mykhailiuk","Rajon Rondo","Lance Stephenson","Moritz Wagner","Johnathan Williams","Ivica Zubac"))
+mean_2019 <- mean(players_2019$heightInches)/12
+players_2009 <- player_profiles(players = c("Trevor Ariza","Shannon Brown","Kobe Bryant","Andrew Bynum","Jordan Farmar","Derek Fisher","Pau Gasol","D.J. Mbenga","Chris Mihm","Adam Morrison","Lamar Odom","Josh Powell","Vladimir Radmanović","Sasha Vujačić","Luke Walton","Yue Sun"))
+mean_2009 <- mean(players_2009$heightInches)/12
+players_1999 <- player_profiles( players = c(	"Corie Blount","Kobe Bryant",	"Elden Campbell","Derek Fisher","Rick Fox","Derek Harper","Robert Horry","Eddie Jones","Travis Knight","Tyronn Lue","Shaquille O'Neal","Ruben Patterson","Glen Rice","Dennis Rodman",	"Sean Rooks"))
+mean_1999 <- mean(players_1999$heightInches)/12
+```
+
+This graphic is showing the different average heights from the same seasons that the other two graphics look at. I wanted to see if there is some correlation between the percent of shots made and the average player height from each of the seasons looked at. There is no notable difference between the made shots throughout the seasons and there is no notable height difference throughout the seasons as well. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+Season <- c("1999", "2009", "2019")
+Height <- c(mean_1999, mean_2009, mean_2019)
+data <- data.frame(Season, Height)
+height_graph <- ggplot(data, aes(x=Season, y=Height, fill=Season))
+height_graph + geom_bar(stat= "identity", width= 0.5) +
+  ggtitle("Average Player Heights Throughout the Years")+ 
+  theme_clean()
+```
+
+  
+
+
